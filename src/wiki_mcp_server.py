@@ -683,7 +683,7 @@ async def wikijs_list_spaces() -> str:
         return json.dumps({"error": error_msg})
 
 @mcp.tool()
-async def wikijs_create_space(name: str, description: str = None) -> str:
+async def wikijs_create_space(name: str, description: str = None, locale: str = "en") -> str:
     """
     Create a new space in Wiki.js.
     Note: Wiki.js doesn't have spaces, so this creates a root-level page as a space placeholder.
@@ -691,6 +691,7 @@ async def wikijs_create_space(name: str, description: str = None) -> str:
     Args:
         name: Space name
         description: Space description (optional)
+        locale: Locale code (ISO 639-1, e.g., "en", "fr", "de"). Default is "en"
     
     Returns:
         JSON string with space details
@@ -699,7 +700,7 @@ async def wikijs_create_space(name: str, description: str = None) -> str:
         # Create a root page that acts as a space
         space_content = f"# {name}\n\n{description or 'This is the main page for the ' + name + ' section.'}\n\n## Pages in this section:\n\n*Pages will be listed here as they are created.*"
         
-        result = await wikijs_create_page(name, space_content)
+        result = await wikijs_create_page(name, space_content, locale=locale)
         result_data = json.loads(result)
         
         if "error" not in result_data:
@@ -846,7 +847,7 @@ async def wikijs_generate_file_overview(
     include_classes: bool = True,
     include_dependencies: bool = True,
     include_examples: bool = False,
-    target_page_id: int = None
+    target_page_id: int = None, locale: str = "en"
 ) -> str:
     """
     Create or update a structured overview page for a file.
@@ -858,6 +859,7 @@ async def wikijs_generate_file_overview(
         include_dependencies: Include import/dependency information
         include_examples: Include usage examples
         target_page_id: Specific page ID to update (optional)
+        locale: Locale code (ISO 639-1, e.g., "en", "fr", "de"). Default is "en"
     
     Returns:
         JSON string with overview page details
@@ -910,7 +912,7 @@ async def wikijs_generate_file_overview(
         else:
             # Create new page
             title = f"{os.path.basename(file_path)} Documentation"
-            response = await wikijs_create_page(title, content)
+            response = await wikijs_create_page(title, content, locale=locale)
             result_data = json.loads(response)
             if "error" not in result_data:
                 result_data["action"] = "created"
@@ -1135,7 +1137,7 @@ async def wikijs_repository_context() -> str:
         return json.dumps({"error": error_msg})
 
 @mcp.tool()
-async def wikijs_create_repo_structure(repo_name: str, description: str = None, sections: List[str] = None) -> str:
+async def wikijs_create_repo_structure(repo_name: str, description: str = None, sections: List[str] = None, locale: str = "en") -> str:
     """
     Create a complete repository documentation structure with nested pages.
     
@@ -1143,6 +1145,7 @@ async def wikijs_create_repo_structure(repo_name: str, description: str = None, 
         repo_name: Repository name (will be the root page)
         description: Repository description
         sections: List of main sections to create (e.g., ["Overview", "API", "Components", "Deployment"])
+        locale: Locale code (ISO 639-1, e.g., "en", "fr", "de"). Default is "en"
     
     Returns:
         JSON string with created structure details
@@ -1179,7 +1182,7 @@ This documentation is organized into the following sections:
 """
         
         # Create root page
-        root_result = await wikijs_create_page(repo_name, root_content)
+        root_result = await wikijs_create_page(repo_name, root_content, locale=locale)
         root_data = json.loads(root_result)
         
         if "error" in root_data:
@@ -1206,7 +1209,7 @@ This is the {section.lower()} section for {repo_name}.
 *This page is part of the {repo_name} documentation structure.*
 """
             
-            section_result = await wikijs_create_page(section, section_content, parent_id=str(root_page_id))
+            section_result = await wikijs_create_page(section, section_content, parent_id=str(root_page_id), locale=locale)
             section_data = json.loads(section_result)
             
             if "error" not in section_data:
@@ -1232,7 +1235,7 @@ This is the {section.lower()} section for {repo_name}.
         return json.dumps({"error": error_msg})
 
 @mcp.tool()
-async def wikijs_create_nested_page(title: str, content: str, parent_path: str, create_parent_if_missing: bool = True) -> str:
+async def wikijs_create_nested_page(title: str, content: str, parent_path: str, create_parent_if_missing: bool = True, locale: str = "en") -> str:
     """
     Create a nested page using hierarchical paths (e.g., "repo/api/endpoints").
     
@@ -1241,6 +1244,7 @@ async def wikijs_create_nested_page(title: str, content: str, parent_path: str, 
         content: Page content
         parent_path: Full path to parent (e.g., "my-repo/api")
         create_parent_if_missing: Create parent pages if they don't exist
+        locale: Locale code (ISO 639-1, e.g., "en", "fr", "de"). Default is "en"
     
     Returns:
         JSON string with page details
@@ -1295,7 +1299,7 @@ This is a section page for organizing documentation.
 *This page was auto-created as part of the documentation hierarchy.*
 """
                     
-                    create_result = await wikijs_create_page(part_title, part_content, parent_id=str(parent_id) if parent_id else "")
+                    create_result = await wikijs_create_page(part_title, part_content, parent_id=str(parent_id) if parent_id else "", locale=locale)
                     create_data = json.loads(create_result)
                     
                     if "error" not in create_data:
@@ -1311,7 +1315,7 @@ This is a section page for organizing documentation.
             return json.dumps({"error": f"Parent path '{parent_path}' not found and create_parent_if_missing is False"})
         
         # Create the target page
-        result = await wikijs_create_page(title, content, parent_id=str(parent_id))
+        result = await wikijs_create_page(title, content, parent_id=str(parent_id), locale=locale)
         result_data = json.loads(result)
         
         if "error" not in result_data:
