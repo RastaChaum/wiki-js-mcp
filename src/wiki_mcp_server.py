@@ -261,7 +261,7 @@ def extract_code_structure(file_path: str) -> Dict[str, Any]:
 # MCP Tools Implementation
 
 @mcp.tool()
-async def wikijs_create_page(title: str, content: str, space_id: str = "", parent_id: str = "") -> str:
+async def wikijs_create_page(title: str, content: str, space_id: str = "", parent_id: str = "", locale: str = "en") -> str:
     """
     Create a new page in Wiki.js with support for hierarchical organization.
     
@@ -270,6 +270,7 @@ async def wikijs_create_page(title: str, content: str, space_id: str = "", paren
         content: Page content (markdown or HTML)
         space_id: Space ID (optional, uses default if not provided)
         parent_id: Parent page ID for hierarchical organization (optional)
+        locale: Locale code (ISO 639-1, e.g., "en", "fr", "de"). Default is "en"
     
     Returns:
         JSON string with page details: {'pageId': int, 'url': str}
@@ -329,7 +330,7 @@ async def wikijs_create_page(title: str, content: str, space_id: str = "", paren
             "editor": "markdown",
             "isPublished": True,
             "isPrivate": False,
-            "locale": "en",
+            "locale": locale,
             "path": path,
             "publishEndDate": None,
             "publishStartDate": None,
