@@ -99,7 +99,9 @@ class WikiJSClient:
     
     def __init__(self):
         self.base_url = settings.WIKIJS_API_URL.rstrip('/')
-        self.client = httpx.AsyncClient(timeout=30.0)
+        # Force HTTP/1.1 to avoid Traefik HTTP/2 PROTOCOL_ERROR
+        # Disable SSL verification for self-signed certificates
+        self.client = httpx.AsyncClient(timeout=30.0, http2=False, verify=False)
         self.authenticated = False
         
     async def authenticate(self) -> bool:
