@@ -369,7 +369,7 @@ async def wikijs_create_page(title: str, content: str, space_id: str = "", paren
         return json.dumps({"error": error_msg})
 
 @mcp.tool()
-async def wikijs_update_page(page_id: int, title: str = None, content: str = None) -> str:
+async def wikijs_update_page(page_id: int, title: str = None, content: str = None, path: str = None) -> str:
     """
     Update an existing page in Wiki.js.
     
@@ -377,6 +377,7 @@ async def wikijs_update_page(page_id: int, title: str = None, content: str = Non
         page_id: Page ID to update
         title: New title (optional)
         content: New content (optional)
+        path: New path/slug (optional) - use format like "homelab-home/quick-references/index"
     
     Returns:
         JSON string with update status
@@ -436,6 +437,7 @@ async def wikijs_update_page(page_id: int, title: str = None, content: str = Non
         # Use provided values or keep current ones
         new_title = title if title is not None else current_page["title"]
         new_content = content if content is not None else current_page["content"]
+        new_path = path if path is not None else current_page["path"]
         
         variables = {
             "id": page_id,
@@ -445,7 +447,7 @@ async def wikijs_update_page(page_id: int, title: str = None, content: str = Non
             "isPrivate": current_page.get("isPrivate", False),
             "isPublished": current_page.get("isPublished", True),
             "locale": current_page.get("locale", "en"),
-            "path": current_page["path"],
+            "path": new_path,
             "scriptCss": "",
             "scriptJs": "",
             "tags": [tag["tag"] for tag in current_page.get("tags", [])],
@@ -473,6 +475,111 @@ async def wikijs_update_page(page_id: int, title: str = None, content: str = Non
         
     except Exception as e:
         error_msg = f"Failed to update page {page_id}: {str(e)}"
+        logger.error(error_msg)
+        return json.dumps({"error": error_msg})
+
+@mcp.tool()
+async def wikijs_move_page(page_id: int, new_path: str) -> str:
+    """
+    Move/rename a Wiki.js page by changing its path (slug).
+    
+    Args:
+        page_id: Page ID to move
+        new_path: New path/slug (e.g., "homelab-home/quick-references/index")
+    
+    Returns:
+        JSON string with move status
+    """
+    try:
+        await wikijs.authenticate()
+        
+        # First get the current page data
+        get_query = """
+        query($id: Int!) {
+            pages {
+                single(id: $id) {
+                    id
+                    path
+                    title
+                    content
+                    description
+                    isPrivate
+                    isPublished
+                    locale
+                    tags {
+                        tag
+                    }
+                }
+            }
+        }
+        """
+        
+        get_response = await wikijs.graphql_request(get_query, {"id": page_id})
+        current_page = get_response.get("data", {}).get("pages", {}).get("single")
+        
+        if not current_page:
+            return json.dumps({"error": f"Page with ID {page_id} not found"})
+        
+        # GraphQL mutation to update page path
+        mutation = """
+        mutation($id: Int!, $content: String!, $description: String!, $editor: String!, $isPrivate: Boolean!, $isPublished: Boolean!, $locale: String!, $path: String!, $scriptCss: String, $scriptJs: String, $tags: [String]!, $title: String!) {
+            pages {
+                update(id: $id, content: $content, description: $description, editor: $editor, isPrivate: $isPrivate, isPublished: $isPublished, locale: $locale, path: $path, scriptCss: $scriptCss, scriptJs: $scriptJs, tags: $tags, title: $title) {
+                    responseResult {
+                        succeeded
+                        errorCode
+                        slug
+                        message
+                    }
+                    page {
+                        id
+                        path
+                        title
+                        updatedAt
+                    }
+                }
+            }
+        }
+        """
+        
+        variables = {
+            "id": page_id,
+            "content": current_page["content"],
+            "description": current_page.get("description", ""),
+            "editor": "markdown",
+            "isPrivate": current_page.get("isPrivate", False),
+            "isPublished": current_page.get("isPublished", True),
+            "locale": current_page.get("locale", "en"),
+            "path": new_path,
+            "scriptCss": "",
+            "scriptJs": "",
+            "tags": [tag["tag"] for tag in current_page.get("tags", [])],
+            "title": current_page["title"]
+        }
+        
+        response = await wikijs.graphql_request(mutation, variables)
+        
+        update_result = response.get("data", {}).get("pages", {}).get("update", {})
+        response_result = update_result.get("responseResult", {})
+        
+        if response_result.get("succeeded"):
+            page_data = update_result.get("page", {})
+            result = {
+                "pageId": page_id,
+                "status": "moved",
+                "oldPath": current_page["path"],
+                "newPath": page_data.get("path"),
+                "title": page_data.get("title"),
+                "lastModified": page_data.get("updatedAt")
+            }
+            logger.info(f"Moved page ID {page_id} from {current_page['path']} to {new_path}")
+            return json.dumps(result)
+        else:
+            error_msg = response_result.get("message", "Unknown error")
+            return json.dumps({"error": f"Failed to move page: {error_msg}"})
+        
+    except Exception as e:
+        error_msg = f"Failed to move page {page_id}: {str(e)}"
         logger.error(error_msg)
         return json.dumps({"error": error_msg})
 
@@ -518,7 +625,7 @@ async def wikijs_get_page(page_id: int = None, slug: str = None) -> str:
             query = """
             query($path: String!) {
                 pages {
-                    singleByPath(path: $path, locale: "en") {
+                    singleByPath(path: $path, locale: "fr") {
                         id
                         path
                         title
@@ -589,7 +696,7 @@ async def wikijs_search_pages(query: str, space_id: str = None) -> str:
         search_query = """
         query($query: String!) {
             pages {
-                search(query: $query, path: "", locale: "en") {
+                search(query: $query, path: "", locale: "fr") {
                     results {
                         id
                         title
