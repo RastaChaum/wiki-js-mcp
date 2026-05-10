@@ -1,69 +1,75 @@
-# Wiki.js MCP Server — Guide de déploiement LXC Proxmox
+# Wiki.js MCP Server — Proxmox LXC Deployment Guide
 
 ## Architecture
 
-Le serveur MCP tourne dans un conteneur LXC Debian 12 sur Proxmox et expose son API via le transport **SSE (Server-Sent Events)** sur le port `8000`, accessible à tous les clients du réseau local.
+The MCP server runs in a Debian 12 LXC container on Proxmox and exposes its API via the **SSE (Server-Sent Events)** transport on port `8000`, accessible to all clients on the local network.
 
 ```
 [IDE/Cursor/Copilot]  ──HTTP SSE──►  [LXC wiki-mcp :8000]  ──GraphQL──►  [Wiki.js]
 ```
 
-## Prérequis
+> **Tip:** For a fully interactive setup with the community-scripts/ProxmoxVE style installer,
+> see [`community-scripts/README.md`](../community-scripts/README.md).
 
-- Proxmox VE 7.x ou 8.x
-- Shell sur l'hôte Proxmox (root)
-- Accès internet depuis l'hôte (pour télécharger le template Debian 12)
-- Un Wiki.js accessible depuis le réseau du LXC
+## Prerequisites
 
-## Déploiement rapide
+- Proxmox VE 7.x or 8.x
+- Shell access on the Proxmox host (root)
+- Internet access from the host (to download the Debian 12 template)
+- A Wiki.js instance reachable from the LXC network
 
-### 1. Sur l'hôte Proxmox
+## Quick Deployment
+
+### 1. On the Proxmox host
 
 ```bash
-# Cloner le dépôt sur l'hôte ou copier le répertoire lxc/
+# Clone the repository on the host or copy the lxc/ directory
 git clone https://github.com/RastaChaum/wiki-js-mcp.git /tmp/wiki-js-mcp
 cd /tmp/wiki-js-mcp/lxc
 
-# Variables optionnelles (valeurs par défaut entre parenthèses)
-export VMID=200          # ID du conteneur Proxmox (200)
-export HOSTNAME=wiki-mcp # Nom du conteneur (wiki-mcp)
-export STORAGE=local-lvm # Stockage Proxmox pour le disque (local-lvm)
-export MEMORY=512        # RAM en Mo (512)
-export IP=dhcp           # "dhcp" ou "192.168.1.50/24" pour IP fixe
-# export GW=192.168.1.1 # Passerelle (requis si IP fixe)
+# Optional overrides (defaults shown in parentheses)
+export VMID=200          # Proxmox container ID (200)
+export HOSTNAME=wiki-mcp # Container hostname (wiki-mcp)
+export STORAGE=local-lvm # Proxmox storage pool for the disk (local-lvm)
+export MEMORY=512        # RAM in MB (512)
+export IP=dhcp           # "dhcp" or "192.168.1.50/24" for a static IP
+# export GW=192.168.1.1 # Default gateway (required for static IP)
 
 bash create-lxc.sh
 ```
 
-### 2. Configurer le serveur
+### 2. Configure the server
 
 ```bash
-# Éditer la configuration dans le conteneur
+# Edit the configuration inside the container
 pct exec 200 -- nano /opt/wiki-js-mcp/.env
 ```
 
-Champs obligatoires dans `.env` :
+Mandatory `.env` fields:
 
 ```env
 WIKIJS_API_URL=http://192.168.1.x:3000
-WIKIJS_TOKEN=votre-jwt-token
+WIKIJS_TOKEN=your-jwt-token
+# OR
+WIKIJS_USERNAME=admin@example.com
+WIKIJS_PASSWORD=your-password
 
-# Déjà configurés par le script d'installation :
+# Already set by the install script:
 MCP_TRANSPORT=sse
 MCP_HOST=0.0.0.0
 MCP_PORT=8000
 ```
 
-### 3. Démarrer le service
+### 3. Start the service
 
 ```bash
 pct exec 200 -- systemctl start wiki-js-mcp
 pct exec 200 -- systemctl status wiki-js-mcp
 ```
 
-### 4. Configurer votre IDE
+### 4. Configure your IDE
 
-Ajoutez dans votre configuration MCP (ex: `~/.config/mcp.json` ou VS Code settings) :
+Add to your MCP configuration (e.g. `~/.config/mcp.json` or VS Code settings):
 
 ```json
 {
@@ -75,35 +81,35 @@ Ajoutez dans votre configuration MCP (ex: `~/.config/mcp.json` ou VS Code settin
 }
 ```
 
-## Commandes utiles
+## Useful Commands
 
 ```bash
-# Voir les logs en temps réel
+# Follow logs in real time
 pct exec 200 -- journalctl -u wiki-js-mcp -f
 
-# Redémarrer après changement de config
+# Restart after a config change
 pct exec 200 -- systemctl restart wiki-js-mcp
 
-# Mise à jour du code
+# Update the code to the latest commit
 pct exec 200 -- bash /opt/wiki-js-mcp/lxc/install.sh
 
-# Vérifier le port
+# Check the listening port
 pct exec 200 -- ss -tlnp | grep 8000
 ```
 
-## Structure du répertoire lxc/
+## Directory Structure
 
 ```
 lxc/
-├── create-lxc.sh        # Script Proxmox pour créer le conteneur
-├── install.sh           # Script d'installation dans le conteneur
-├── wiki-js-mcp.service  # Unit systemd
-└── README.md            # Ce fichier
+├── create-lxc.sh        # Proxmox host script — creates the LXC container
+├── install.sh           # In-container installation script
+├── wiki-js-mcp.service  # systemd unit file
+└── README.md            # This file
 ```
 
-## Sécurité
+## Security Notes
 
-- Le service tourne sous l'utilisateur `wikimcp` (non-root)
-- `NoNewPrivileges`, `PrivateTmp`, `ProtectSystem` activés
-- Exposez le port 8000 uniquement sur votre réseau interne (pas sur Internet)
-- Pour HTTPS, placez un reverse proxy Nginx/Traefik devant le LXC
+- The service runs as the `wikimcp` user (non-root)
+- Systemd hardening: `NoNewPrivileges`, `PrivateTmp`, `ProtectSystem=strict`
+- Expose port 8000 on your internal network only (never directly to the internet)
+- For HTTPS, place an Nginx or Traefik reverse proxy in front of the LXC
