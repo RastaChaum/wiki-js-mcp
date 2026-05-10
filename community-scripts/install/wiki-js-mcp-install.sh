@@ -5,13 +5,27 @@
 # License: MIT | https://github.com/community-scripts/ProxmoxVE/raw/main/LICENSE
 # Source: https://github.com/talosdeus/wiki-js-mcp
 
-source /dev/stdin <<< "${FUNCTIONS_FILE_PATH:-$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/misc/install.func)}"
-color
-verb_ip6
-catch_errors
-setting_up_container
-network_check
-update_os
+# ---------------------------------------------------------------------------
+# Dual-mode: works inside the community-scripts framework (FUNCTIONS_FILE_PATH
+# set) AND as a plain standalone script (pct exec / bash direct call).
+# ---------------------------------------------------------------------------
+if [[ -n "${FUNCTIONS_FILE_PATH:-}" ]]; then
+  source /dev/stdin <<< "$FUNCTIONS_FILE_PATH"
+  color; verb_ip6; catch_errors; setting_up_container; network_check; update_os
+else
+  # Standalone stubs — plain output, no community-scripts framework needed
+  STD=""
+  msg_info()  { echo "  [INFO] $*"; }
+  msg_ok()    { echo "  [ OK ] $*"; }
+  msg_error() { echo "  [ERR ] $*" >&2; exit 1; }
+  motd_ssh()    { :; }
+  customize()   { :; }
+  cleanup_lxc() { :; }
+
+  set -euo pipefail
+  echo "=== Wiki.js MCP Server — Installation ==="
+  apt-get update -qq
+fi
 
 INSTALL_DIR="/opt/wiki-js-mcp"
 SERVICE_USER="wikimcp"
@@ -87,7 +101,9 @@ WantedBy=multi-user.target
 SERVICEEOF
 $STD systemctl daemon-reload
 $STD systemctl enable wiki-js-mcp
-msg_ok "Created systemd service (disabled until .env is configured)"
+msg_ok "Created systemd service"
+
+msg_info "Installation complete — configure /opt/wiki-js-mcp/.env then: systemctl start wiki-js-mcp"
 
 motd_ssh
 customize
