@@ -1,0 +1,26 @@
+[Unit]
+Description=Wiki.js MCP Server (SSE transport)
+Documentation=https://github.com/RastaChaum/wiki-js-mcp
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=wikimcp
+Group=wikimcp
+WorkingDirectory=/opt/wiki-js-mcp
+EnvironmentFile=/opt/wiki-js-mcp/.env
+ExecStart=/opt/wiki-js-mcp/venv/bin/python src/wiki_mcp_server.py
+Restart=on-failure
+RestartSec=5s
+StandardOutput=append:/opt/wiki-js-mcp/logs/mcp.log
+StandardError=append:/opt/wiki-js-mcp/logs/mcp-error.log
+
+# Sécurité minimale
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/wiki-js-mcp/logs /opt/wiki-js-mcp/wikijs_mappings.db
+
+[Install]
+WantedBy=multi-user.target

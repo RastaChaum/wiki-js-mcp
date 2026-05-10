@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     LOG_FILE: str = Field(default="wikijs_mcp.log")
     REPOSITORY_ROOT: str = Field(default="./")
     DEFAULT_SPACE_NAME: str = Field(default="Documentation")
+    MCP_TRANSPORT: str = Field(default="stdio")  # "stdio" or "sse"
+    MCP_HOST: str = Field(default="0.0.0.0")
+    MCP_PORT: int = Field(default=8000)
     
     class Config:
         env_file = ".env"
@@ -2173,7 +2176,11 @@ def main():
         logger.info("Wiki.js MCP Server started")
         
     # Run the server
-    mcp.run()
+    transport = settings.MCP_TRANSPORT
+    if transport == "sse":
+        mcp.run(transport="sse", host=settings.MCP_HOST, port=settings.MCP_PORT)
+    else:
+        mcp.run()
 
 if __name__ == "__main__":
     main() 
