@@ -584,13 +584,14 @@ async def wikijs_move_page(page_id: int, new_path: str) -> str:
         return json.dumps({"error": error_msg})
 
 @mcp.tool()
-async def wikijs_get_page(page_id: int = None, slug: str = None) -> str:
+async def wikijs_get_page(page_id: int = None, slug: str = None, locale: str = "en") -> str:
     """
     Retrieve page metadata and content from Wiki.js.
     
     Args:
         page_id: Page ID (optional)
         slug: Page slug/path (optional)
+        locale: Locale code for slug lookup (ISO 639-1, e.g., "en", "fr"). Default is "en"
     
     Returns:
         JSON string with page data
@@ -623,9 +624,9 @@ async def wikijs_get_page(page_id: int = None, slug: str = None) -> str:
             variables = {"id": page_id}
         elif slug:
             query = """
-            query($path: String!) {
+            query($path: String!, $locale: String!) {
                 pages {
-                    singleByPath(path: $path, locale: "fr") {
+                    singleByPath(path: $path, locale: $locale) {
                         id
                         path
                         title
@@ -643,7 +644,7 @@ async def wikijs_get_page(page_id: int = None, slug: str = None) -> str:
                 }
             }
             """
-            variables = {"path": slug}
+            variables = {"path": slug, "locale": locale}
         else:
             return json.dumps({"error": "Either page_id or slug must be provided"})
         
@@ -678,13 +679,14 @@ async def wikijs_get_page(page_id: int = None, slug: str = None) -> str:
         return json.dumps({"error": error_msg})
 
 @mcp.tool()
-async def wikijs_search_pages(query: str, space_id: str = None) -> str:
+async def wikijs_search_pages(query: str, space_id: str = None, locale: str = "en") -> str:
     """
     Search pages by text in Wiki.js.
     
     Args:
         query: Search query
         space_id: Space ID to limit search (optional)
+        locale: Locale code to search within (ISO 639-1, e.g., "en", "fr"). Default is "en"
     
     Returns:
         JSON string with search results
@@ -694,9 +696,9 @@ async def wikijs_search_pages(query: str, space_id: str = None) -> str:
         
         # GraphQL query for search (fixed - removed invalid suggestions subfields)
         search_query = """
-        query($query: String!) {
+        query($query: String!, $locale: String!) {
             pages {
-                search(query: $query, path: "", locale: "fr") {
+                search(query: $query, path: "", locale: $locale) {
                     results {
                         id
                         title
@@ -710,7 +712,7 @@ async def wikijs_search_pages(query: str, space_id: str = None) -> str:
         }
         """
         
-        variables = {"query": query}
+        variables = {"query": query, "locale": locale}
         
         response = await wikijs.graphql_request(search_query, variables)
         
@@ -1042,7 +1044,8 @@ async def wikijs_bulk_update_project_docs(
     summary: str, 
     affected_files: List[str], 
     context: str,
-    auto_create_missing: bool = True
+    auto_create_missing: bool = True,
+    locale: str = "en"
 ) -> str:
     """
     Batch update pages for large changes across multiple files.
@@ -1091,7 +1094,7 @@ async def wikijs_bulk_update_project_docs(
                 
                 elif auto_create_missing:
                     # Create new overview page
-                    overview_response = await wikijs_generate_file_overview(file_path)
+                    overview_response = await wikijs_generate_file_overview(file_path, locale=locale)
                     overview_data = json.loads(overview_response)
                     if "error" not in overview_data and "pageId" in overview_data:
                         results["created_pages"].append({
@@ -1544,7 +1547,7 @@ async def wikijs_get_page_children(page_id: int = None, page_path: str = None) -
         return json.dumps({"error": error_msg})
 
 @mcp.tool()
-async def wikijs_create_documentation_hierarchy(project_name: str, file_mappings: List[Dict[str, str]], auto_organize: bool = True) -> str:
+async def wikijs_create_documentation_hierarchy(project_name: str, file_mappings: List[Dict[str, str]], auto_organize: bool = True, locale: str = "en") -> str:
     """
     Create a complete documentation hierarchy for a project based on file structure.
     
@@ -1552,6 +1555,7 @@ async def wikijs_create_documentation_hierarchy(project_name: str, file_mappings
         project_name: Name of the project/repository
         file_mappings: List of {"file_path": "src/components/Button.tsx", "doc_path": "components/button"} mappings
         auto_organize: Automatically organize files into logical sections
+        locale: Locale code for all created pages (ISO 639-1, e.g., "en", "fr"). Default is "en"
     
     Returns:
         JSON string with created hierarchy details
@@ -1593,7 +1597,7 @@ async def wikijs_create_documentation_hierarchy(project_name: str, file_mappings
         # Create root project structure
         section_names = [name.title() for name, files in sections.items() if files] if auto_organize else ["Documentation"]
         
-        repo_result = await wikijs_create_repo_structure(project_name, f"Documentation for {project_name}", section_names)
+        repo_result = await wikijs_create_repo_structure(project_name, f"Documentation for {project_name}", section_names, locale=locale)
         repo_data = json.loads(repo_result)
         
         if "error" in repo_data:
@@ -1615,7 +1619,7 @@ async def wikijs_create_documentation_hierarchy(project_name: str, file_mappings
                     doc_path = file_mapping.get("doc_path", slugify(os.path.basename(file_path)))
                     
                     # Generate documentation content for the file
-                    file_overview_result = await wikijs_generate_file_overview(file_path, target_page_id=None)
+                    file_overview_result = await wikijs_generate_file_overview(file_path, target_page_id=None, locale=locale)
                     overview_data = json.loads(file_overview_result)
                     
                     if "error" not in overview_data:
