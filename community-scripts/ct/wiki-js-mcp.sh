@@ -138,11 +138,7 @@ function build_container() {
   msg_ok "Base packages installed"
 
   msg_info "Running ${APP} install script"
-  lxc-attach -n "$CTID" \
-    -v FUNCTIONS_FILE_PATH="$FUNCTIONS_FILE_PATH" \
-    -v DIAGNOSTICS="${DIAGNOSTICS:-no}" \
-    -v VERBOSE="${VERBOSE:-no}" \
-    -- bash -c "$(curl -fsSL "${INSTALL_SCRIPT_URL}")"
+  lxc-attach -n "$CTID" -- bash -c "$(curl -fsSL "${INSTALL_SCRIPT_URL}")"
   msg_ok "${APP} installed"
 
   IP="$ip_addr"
