@@ -170,6 +170,7 @@ class WikiJSClient:
             # Check for GraphQL errors
             if "errors" in data:
                 error_msg = "; ".join([err.get("message", str(err)) for err in data["errors"]])
+                logger.error(f"GraphQL error: {error_msg}")
                 raise Exception(f"GraphQL error: {error_msg}")
             
             return data
@@ -677,7 +678,8 @@ async def wikijs_get_page(page_id: int = None, slug: str = None, locale: str = "
         return json.dumps(result)
         
     except Exception as e:
-        error_msg = f"Failed to get page: {str(e)}"
+        underlying = getattr(getattr(e, 'last_attempt', None), 'exception', lambda: None)()
+        error_msg = f"Failed to get page: {str(underlying or e)}"
         logger.error(error_msg)
         return json.dumps({"error": error_msg})
 
