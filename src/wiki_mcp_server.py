@@ -524,57 +524,42 @@ async def wikijs_move_page(page_id: int, new_path: str) -> str:
         if not current_page:
             return json.dumps({"error": f"Page with ID {page_id} not found"})
         
-        # GraphQL mutation to update page path
-        mutation = """
-        mutation($id: Int!, $content: String!, $description: String!, $editor: String!, $isPrivate: Boolean!, $isPublished: Boolean!, $locale: String!, $path: String!, $scriptCss: String, $scriptJs: String, $tags: [String]!, $title: String!) {
+        # Use the dedicated pages.move mutation (avoids rebuild-tree duplicate key bug
+        # triggered by pages.update when changing path in Wiki.js 2.x)
+        locale = current_page.get("locale", "fr")
+        move_mutation = """
+        mutation($id: Int!, $destinationPath: String!, $destinationLocale: String!) {
             pages {
-                update(id: $id, content: $content, description: $description, editor: $editor, isPrivate: $isPrivate, isPublished: $isPublished, locale: $locale, path: $path, scriptCss: $scriptCss, scriptJs: $scriptJs, tags: $tags, title: $title) {
+                move(id: $id, destinationPath: $destinationPath, destinationLocale: $destinationLocale) {
                     responseResult {
                         succeeded
                         errorCode
                         slug
                         message
                     }
-                    page {
-                        id
-                        path
-                        title
-                        updatedAt
-                    }
                 }
             }
         }
         """
         
-        variables = {
+        move_variables = {
             "id": page_id,
-            "content": current_page["content"],
-            "description": current_page.get("description", ""),
-            "editor": "markdown",
-            "isPrivate": current_page.get("isPrivate", False),
-            "isPublished": current_page.get("isPublished", True),
-            "locale": current_page.get("locale", "en"),
-            "path": new_path,
-            "scriptCss": "",
-            "scriptJs": "",
-            "tags": [tag["tag"] for tag in current_page.get("tags", [])],
-            "title": current_page["title"]
+            "destinationPath": new_path,
+            "destinationLocale": locale,
         }
         
-        response = await wikijs.graphql_request(mutation, variables)
+        response = await wikijs.graphql_request(move_mutation, move_variables)
         
-        update_result = response.get("data", {}).get("pages", {}).get("update", {})
-        response_result = update_result.get("responseResult", {})
+        move_result = response.get("data", {}).get("pages", {}).get("move", {})
+        response_result = move_result.get("responseResult", {})
         
         if response_result.get("succeeded"):
-            page_data = update_result.get("page", {})
             result = {
                 "pageId": page_id,
                 "status": "moved",
                 "oldPath": current_page["path"],
-                "newPath": page_data.get("path"),
-                "title": page_data.get("title"),
-                "lastModified": page_data.get("updatedAt")
+                "newPath": new_path,
+                "title": current_page["title"],
             }
             logger.info(f"Moved page ID {page_id} from {current_page['path']} to {new_path}")
             return json.dumps(result)
@@ -1371,9 +1356,9 @@ async def wikijs_create_nested_page(title: str, content: str, parent_path: str, 
         
         # Check if parent exists
         parent_query = """
-        query($path: String!) {
+        query($path: String!, $locale: String!) {
             pages {
-                singleByPath(path: $path, locale: "en") {
+                singleByPath(path: $path, locale: $locale) {
                     id
                     path
                     title
@@ -1382,7 +1367,7 @@ async def wikijs_create_nested_page(title: str, content: str, parent_path: str, 
         }
         """
         
-        parent_response = await wikijs.graphql_request(parent_query, {"path": parent_path})
+        parent_response = await wikijs.graphql_request(parent_query, {"path": parent_path, "locale": locale})
         parent_data = parent_response.get("data", {}).get("pages", {}).get("singleByPath")
         
         if not parent_data and create_parent_if_missing:
@@ -1398,7 +1383,7 @@ async def wikijs_create_nested_page(title: str, content: str, parent_path: str, 
                     current_path = part
                 
                 # Check if this level exists
-                check_response = await wikijs.graphql_request(parent_query, {"path": current_path})
+                check_response = await wikijs.graphql_request(parent_query, {"path": current_path, "locale": locale})
                 existing = check_response.get("data", {}).get("pages", {}).get("singleByPath")
                 
                 if not existing:
