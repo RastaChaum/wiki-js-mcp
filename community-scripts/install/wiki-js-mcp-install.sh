@@ -94,7 +94,7 @@ StandardError=append:/opt/wiki-js-mcp/logs/mcp-error.log
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
-ReadWritePaths=/opt/wiki-js-mcp/logs /opt/wiki-js-mcp/wikijs_mappings.db
+ReadWritePaths=/opt/wiki-js-mcp
 
 [Install]
 WantedBy=multi-user.target
